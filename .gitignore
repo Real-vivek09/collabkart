@@ -1,0 +1,4 @@
+# .gitignore file ke liye content:
+node_modules/
+.env
+.DS_Store
