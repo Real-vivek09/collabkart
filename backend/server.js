@@ -2,6 +2,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const paymentRoutes = require('./routes/payment');
+const userRoutes = require('./routes/users');
 require('dotenv').config();
 
 const app = express();
@@ -13,6 +14,7 @@ mongoose.connect(process.env.MONGO_URI)
   .catch(err => console.error(err));
 
 app.use('/api/payments', paymentRoutes);
+app.use('/api/users', userRoutes);
 app.get('/api', (req, res) => res.json({ message: 'CollabKart API' }));
 
-app.listen(5000, () => console.log('Server on port 5000'));
+app.listen(5001, () => console.log('Server on port 5001'));

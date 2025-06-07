@@ -2,30 +2,55 @@
 @tailwind components;
 @tailwind utilities;
 
-@keyframes fade-in {
-  0% { opacity: 0; transform: translateY(20px); }
-  100% { opacity: 1; transform: translateY(0); }
+:root.dark {
+  --bg-primary: #000000;
+  --bg-secondary: #1e3a8a;
+  --text-primary: #ffffff;
+  --text-secondary: #d1d5db;
 }
-.animate {
-    animation: fadeIn 1s ease-in-out;
-}
-.animate {
-    animation: fadeInUp 0.5s ease-in-out;
-}
-.animate {
-    animation: 0.3s ease-out-out;
+:root.light {
+  --bg-primary: #f3f4f6;
+  --bg-secondary: #ffffff;
+  --text-primary: #1f2937;
+  --text-secondary: #4b5563;
 }
 
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes gradient-text {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
 .animate-fade-in {
   animation: fade-in 1s ease-out forwards;
+}
+.animate-gradient-text {
+  background-size: 200% 200%;
+  animation: gradient-text 3s linear infinite;
+}
+.animate-pulse {
+  animation: pulse 1.5s infinite;
 }
 .delay-200 {
   animation-delay: 0.2s;
 }
+.delay-400 {
+  animation-delay: 0.4s;
+}
 .hover\:scale-105:hover {
   transform: scale(1.05);
 }
-input:focus {
-  transform: scale(1.02);
-  transition: transform 0.2s;
+.bg-clip-text {
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+.shadow-neon {
+  box-shadow: 0 0 10px #FF007A, 0 0 20px #8B00FF;
 }

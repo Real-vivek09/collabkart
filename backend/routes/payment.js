@@ -10,13 +10,16 @@ const razorpay = new Razorpay({
 
 router.post('/create-order', async (req, res) => {
   try {
-    const { amount } = req.body; // Amount in INR
+    const { amount } = req.body;
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ error: 'Invalid amount' });
+    }
     const order = await razorpay.orders.create({
       amount: amount * 100, // Convert to paise
       currency: 'INR',
       receipt: `receipt_${Date.now()}`,
     });
-    res.json({ orderId: order.id, amount: order.amount });
+    res.json({ orderId: order.id, amount: order.amount, key: process.env.RAZORPAY_KEY_ID });
   } catch (err) {
     console.error('Razorpay error:', err);
     res.status(500).json({ error: 'Failed to create order' });
