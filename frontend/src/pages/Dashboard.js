@@ -1,165 +1,229 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
-import { auth } from '../firebase';
+import { useAuth } from '../App';
 import axios from 'axios';
-import toast, { Toaster } from 'react-hot-toast';
-import Sidebar from '../views/Sidebar';
+import toast from 'react-hot-toast';
+import { Bar } from 'react-chartjs-2';
+import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js';
+import { FaBars, FaTimes, FaProjectDiagram, FaTasks, FaBell, FaChartBar } from 'react-icons/fa';
 import Button from '../components/Button';
 
+ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
+
 const Dashboard = () => {
-  const [user, setUser] = useState(null);
-  const [profile, setProfile] = useState(null);
-  const [projects, setProjects] = useState({ active: 0, completed: 0, pendingPayments: 0 });
-  const [loading, setLoading] = useState(true);
-  const [logoutLoading, setLogoutLoading] = useState(false);
+  const { user } = useAuth();
   const navigate = useNavigate();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [data, setData] = useState({
+    projects: [],
+    tasks: [],
+    notifications: [],
+    stats: { activeProjects: 0, completedProjects: 0, pendingTasks: 0 },
+  });
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      if (currentUser) {
-        setUser(currentUser);
-        try {
-          // Fetch user profile from MongoDB
-          const { data } = await axios.get(`http://localhost:5001/api/users/profile/${currentUser.uid}`);
-          setProfile(data);
-          // Fetch project data
-          const projectData = await axios.get(`http://localhost:5001/api/users/projects/${currentUser.uid}`);
-          setProjects(projectData.data);
-        } catch (err) {
-          console.error('Data fetch error:', err);
-          toast.error('Failed to load profile or projects');
-        }
-      } else {
-        navigate('/login');
+    const fetchData = async () => {
+      try {
+        const { data } = await axios.get('http://localhost:5001/api/dashboard/data');
+        setData(data);
+      } catch (err) {
+        console.error('Dashboard data error:', err);
+        toast.error('Failed to load dashboard data');
       }
-      setLoading(false);
-    });
-    return () => unsubscribe();
-  }, [navigate]);
+    };
+    fetchData();
+  }, []);
 
-  const handleLogout = async () => {
-    setLogoutLoading(true);
-    try {
-      await signOut(auth);
-      toast.success('Logged out successfully!');
-      navigate('/login');
-    } catch (err) {
-      console.error('Logout error:', err);
-      toast.error('Failed to logout');
-    } finally {
-      setLogoutLoading(false);
-    }
+  const chartData = {
+    labels: ['Active Projects', 'Completed Projects', 'Pending Tasks'],
+    datasets: [
+      {
+        label: 'Stats',
+        data: [data.stats.activeProjects, data.stats.completedProjects, data.stats.pendingTasks],
+        backgroundColor: ['#FF007A', '#8B00FF', '#3B82F6'],
+        borderColor: ['#FF007A', '#8B00FF', '#3B82F6'],
+        borderWidth: 1,
+      },
+    ],
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center dark:bg-black light:bg-gray-100">
-        <div className="text-white dark:text-gray-200 light:text-gray-800 text-xl animate-pulse">Loading...</div>
-      </div>
-    );
-  }
+  const chartOptions = {
+    responsive: true,
+    plugins: {
+      legend: { position: 'top', labels: { color: '#D1D5DB' } },
+      title: { display: true, text: 'Dashboard Overview', color: '#D1D5DB' },
+    },
+    scales: {
+      y: { beginAtZero: true, ticks: { color: '#D1D5DB' } },
+      x: { ticks: { color: '#D1D5DB' } },
+    },
+  };
 
   return (
     <div className="min-h-screen flex dark:bg-gradient-to-b dark:from-black dark:to-blue-950 light:bg-gray-100">
       <Helmet>
         <title>Dashboard - CollabKart</title>
-        <meta name="description" content="Manage your CollabKart profile and projects." />
-        <meta name="keywords" content="CollabKart, dashboard, VNIT, projects" />
+        <meta name="description" content="Manage your projects, tasks, and notifications on CollabKart's dashboard." />
       </Helmet>
-      <Toaster position="top-right" />
-      <Sidebar />
-      <div className="flex-1 flex flex-col">
-        {/* Header */}
-        <header className="bg-gray-800 dark:bg-gray-900 light:bg-white shadow-lg py-4">
-          <div className="container mx-auto px-4 flex justify-between items-center">
-            <h1 className="text-2xl md:text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-pink-600 to-purple-700 dark:text-white light:text-gray-800">
-              Welcome, {profile?.name || user?.email}
-            </h1>
+      {/* Sidebar */}
+      <aside
+        className={`fixed inset-y-0 left-0 w-64 bg-gray-800 dark:bg-gray-900 light:bg-white transform ${
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        } md:translate-x-0 transition-transform duration-300 z-50`}
+        role="navigation"
+        aria-label="Dashboard sidebar"
+      >
+        <div className="flex items-center justify-between p-4 border-b border-gray-700 dark:border-gray-800 light:border-gray-200">
+          <Link to="/" className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-pink-600 to-purple-700">
+            CollabKart
+          </Link>
+          <button
+            className="md:hidden text-gray-300 dark:text-gray-200 light:text-gray-700"
+            onClick={() => setSidebarOpen(false)}
+            aria-label="Close sidebar"
+          >
+            <FaTimes size={24} />
+          </button>
+        </div>
+        <nav className="p-4 space-y-2">
+          <Link
+            to="/dashboard"
+            className="flex items-center p-2 text-gray-300 dark:text-gray-200 light:text-gray-700 hover:bg-gray-700 dark:hover:bg-gray-800 light:hover:bg-gray-100 rounded-lg"
+            aria-label="Dashboard overview"
+          >
+            <FaChartBar className="mr-2" /> Overview
+          </Link>
+          <Link
+            to="/projects"
+            className="flex items-center p-2 text-gray-300 dark:text-gray-200 light:text-gray-700 hover:bg-gray-700 dark:hover:bg-gray-800 light:hover:bg-gray-100 rounded-lg"
+            aria-label="Projects"
+          >
+            <FaProjectDiagram className="mr-2" /> Projects
+          </Link>
+          <Link
+            to="/messaging"
+            className="flex items-center p-2 text-gray-300 dark:text-gray-200 light:text-gray-700 hover:bg-gray-700 dark:hover:bg-gray-800 light:hover:bg-gray-100 rounded-lg"
+            aria-label="Messaging"
+          >
+            <FaBell className="mr-2" /> Messaging
+          </Link>
+          <Link
+            to="/profile/edit"
+            className="flex items-center p-2 text-gray-300 dark:text-gray-200 light:text-gray-700 hover:bg-gray-700 dark:hover:bg-gray-800 light:hover:bg-gray-100 rounded-lg"
+            aria-label="Edit profile"
+          >
+            <FaTasks className="mr-2" /> Profile
+          </Link>
+        </nav>
+      </aside>
+      {/* Main Content */}
+      <main className="flex-1 p-4 md:ml-64">
+        <div className="container mx-auto">
+          {/* Header */}
+          <header className="flex items-center justify-between mb-8">
             <div className="flex items-center space-x-4">
-              <img
-                src={user?.photoURL || 'https://via.placeholder.com/40'}
-                alt="User avatar"
-                className="w-10 h-10 rounded-full border-2 border-pink-600 shadow-neon"
-                aria-label="User profile picture"
-              />
-              <Button
-                text={logoutLoading ? <span className="animate-spin inline-block h-5 w-5 border-t-2 border-white rounded-full"></span> : 'Logout'}
-                className="bg-red-600 text-white hover:bg-red-700 shadow-neon hover:scale-105 transform transition-transform"
-                onClick={handleLogout}
-                disabled={logoutLoading}
-                aria-label="Logout button"
-              />
+              <button
+                className="md:hidden text-gray-300 dark:text-gray-200 light:text-gray-700"
+                onClick={() => setSidebarOpen(true)}
+                aria-label="Open sidebar"
+              >
+                <FaBars size={24} />
+              </button>
+              <h1 className="text-2xl md:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-pink-600 to-purple-700">
+                Welcome, {user?.displayName || 'User'}
+              </h1>
             </div>
-          </div>
-        </header>
-
-        {/* Main Content */}
-        <main className="flex-1 py-16">
-          <div className="container mx-auto px-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {/* Profile Card */}
-              <div className="bg-gray-800 dark:bg-gray-900 light:bg-white rounded-xl shadow-lg p-6 animate-fade-in">
-                <h2 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-pink-600 to-purple-700 dark:text-white light:text-gray-800 mb-4">
-                  Your Profile
-                </h2>
-                <p className="text-gray-300 dark:text-gray-200 light:text-gray-600 mb-2">
-                  <strong>Name:</strong> {profile?.name || 'N/A'}
-                </p>
-                <p className="text-gray-300 dark:text-gray-200 light:text-gray-600 mb-2">
-                  <strong>Email:</strong> {user?.email}
-                </p>
-                <p className="text-gray-300 dark:text-gray-200 light:text-gray-600 mb-2">
-                  <strong>Role:</strong> {profile?.role || 'N/A'}
-                </p>
-                {profile?.role === 'student' && (
-                  <p className="text-gray-300 dark:text-gray-200 light:text-gray-600 mb-4">
-                    <strong>Skills:</strong> {profile?.skills.join(', ') || 'None'}
-                  </p>
-                )}
-                {profile?.role === 'startup' && (
-                  <p className="text-gray-300 dark:text-gray-200 light:text-gray-600 mb-4">
-                    <strong>Company:</strong> {profile?.companyName || 'N/A'}
-                  </p>
-                )}
-                <Button
-                  text="Edit Profile"
-                  className="bg-gradient-to-r from-pink-600 to-purple-700 text-white hover:scale-105 transform transition-transform shadow-neon"
-                  onClick={() => navigate('/profile/edit')}
-                  aria-label="Edit profile button"
-                />
+            <Button
+              text="New Project"
+              className="bg-gradient-to-r from-pink-600 to-purple-700 text-white hover:scale-105 transform transition-transform shadow-neon"
+              onClick={() => navigate('/projects/new')}
+              aria-label="Create new project"
+            />
+          </header>
+          {/* Grid Layout */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Stats Cards */}
+            <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="bg-gray-800 p-6 rounded-xl shadow-lg animate-fade-in">
+                <h3 className="text-xl font-semibold text-pink-600 mb-2">Active Projects</h3>
+                <p className="text-3xl font-bold text-white">{data.stats.activeProjects}</p>
               </div>
-              {/* Project Overview */}
-              <div className="md:col-span-2 bg-gray-800 dark:bg-gray-900 light:bg-white rounded-xl shadow-lg p-6 animate-fade-in delay-200">
-                <h2 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-pink-600 to-purple-700 dark:text-white light:text-gray-800 mb-4">
-                  Project Overview
-                </h2>
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-300 dark:text-gray-200 light:text-gray-600">Active Projects</span>
-                    <span className="text-pink-600 dark:text-pink-500 light:text-blue-600 font-bold">{projects.active}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-300 dark:text-gray-200 light:text-gray-600">Completed Projects</span>
-                    <span className="text-pink-600 dark:text-pink-500 light:text-blue-600 font-bold">{projects.completed}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-300 dark:text-gray-200 light:text-gray-600">Pending Payments</span>
-                    <span className="text-pink-600 dark:text-pink-500 light:text-blue-600 font-bold">₹{projects.pendingPayments.toLocaleString()}</span>
-                  </div>
-                </div>
-                <Button
-                  text="View Projects"
-                  className="mt-6 bg-gradient-to-r from-pink-600 to-purple-700 text-white hover:scale-105 transform transition-transform shadow-neon"
-                  onClick={() => navigate('/projects')}
-                  aria-label="View projects button"
-                />
+              <div className="bg-gray-800 p-6 rounded-xl shadow-lg animate-fade-in delay-200">
+                <h3 className="text-xl font-semibold text-purple-700 mb-2">Completed Projects</h3>
+                <p className="text-3xl font-bold text-white">{data.stats.completedProjects}</p>
+              </div>
+              <div className="bg-gray-800 p-6 rounded-xl shadow-lg animate-fade-in delay-400">
+                <h3 className="text-xl font-semibold text-blue-500 mb-2">Pending Tasks</h3>
+                <p className="text-3xl font-bold text-white">{data.stats.pendingTasks}</p>
               </div>
             </div>
+            {/* Chart */}
+            <div className="lg:col-span-2 bg-gray-800 p-6 rounded-xl shadow-lg animate-fade-in">
+              <Bar data={chartData} options={chartOptions} aria-label="Dashboard stats chart" />
+            </div>
+            {/* Notifications */}
+            <div className="bg-gray-800 p-6 rounded-xl shadow-lg animate-fade-in delay-200">
+              <h3 className="text-xl font-semibold text-white mb-4">Notifications</h3>
+              <ul className="space-y-4 max-h-96 overflow-y-auto">
+                {data.notifications.map((notification) => (
+                  <li key={notification.id} className="text-gray-300 border-b border-gray-700 pb-2">
+                    <p>{notification.message}</p>
+                    <p className="text-sm text-gray-500">{new Date(notification.timestamp).toLocaleString()}</p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            {/* Projects Table */}
+            <div className="lg:col-span-3 bg-gray-800 p-6 rounded-xl shadow-lg animate-fade-in">
+              <h3 className="text-xl font-semibold text-white mb-4">Your Projects</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-gray-300">
+                  <thead>
+                    <tr className="border-b border-gray-700">
+                      <th className="p-2">Title</th>
+                      <th className="p-2">Status</th>
+                      <th className="p-2">Due Date</th>
+                      <th className="p-2">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.projects.map((project) => (
+                      <tr key={project._id} className="border-b border-gray-700 hover:bg-gray-700">
+                        <td className="p-2">{project.title}</td>
+                        <td className="p-2 capitalize">{project.status}</td>
+                        <td className="p-2">{project.dueDate ? new Date(project.dueDate).toLocaleDateString() : '-'}</td>
+                        <td className="p-2">
+                          <Link to={`/projects/${project._id}`} className="text-pink-600 hover:text-purple-700">
+                            View
+                          </Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            {/* Tasks */}
+            <div className="lg:col-span-3 bg-gray-800 p-6 rounded-xl shadow-lg animate-fade-in delay-200">
+              <h3 className="text-xl font-semibold text-white mb-4">Your Tasks</h3>
+              <ul className="space-y-4">
+                {data.tasks.map((task) => (
+                  <li key={task.id} className="flex justify-between items-center text-gray-300 border-b border-gray-700 pb-2">
+                    <div>
+                      <p>{task.title}</p>
+                      <p className="text-sm text-gray-500">Due: {task.dueDate}</p>
+                    </div>
+                    <span className={`text-sm capitalize ${task.status === 'pending' ? 'text-yellow-400' : 'text-green-500'}`}>
+                      {task.status}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
-        </main>
-      </div>
+        </div>
+      </main>
     </div>
   );
 };

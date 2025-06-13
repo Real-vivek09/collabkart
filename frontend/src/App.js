@@ -20,6 +20,10 @@ const Messaging = lazy(() => import('./pages/Messaging'));
 const Payment = lazy(() => import('./pages/Payment'));
 const ProfileEdit = lazy(() => import('./pages/ProfileEdit'));
 const NotFound = lazy(() => import('./pages/NotFound'));
+const Privacy = lazy(() => import('./pages/Privacy'));
+const Terms = lazy(() => import('./pages/Terms'));
+const Contact = lazy(() => import('./pages/Contact'));
+const About = lazy(() => import('./pages/About'));
 
 // Theme context
 const ThemeContext = createContext();
@@ -28,12 +32,19 @@ const ThemeProvider = ({ children }) => {
   const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
 
   useEffect(() => {
+    console.log('Theme changed to:', theme); // Debug log
     localStorage.setItem('theme', theme);
-    document.documentElement.classList.toggle('light', theme === 'light');
-    document.documentElement.classList.toggle('dark', theme === 'dark');
+    document.documentElement.classList.remove('light', 'dark');
+    document.documentElement.classList.add(theme);
   }, [theme]);
 
-  const toggleTheme = () => setTheme(theme === 'dark' ? 'light' : 'dark');
+  const toggleTheme = () => {
+    setTheme((prevTheme) => {
+      const newTheme = prevTheme === 'dark' ? 'light' : 'dark';
+      console.log('Toggling to:', newTheme); // Debug log
+      return newTheme;
+    });
+  };
 
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme }}>
@@ -42,7 +53,13 @@ const ThemeProvider = ({ children }) => {
   );
 };
 
-export const useTheme = () => useContext(ThemeContext);
+export const useTheme = () => {
+  const context = useContext(ThemeContext);
+  if (!context) {
+    throw new Error('useTheme must be used within a ThemeProvider');
+  }
+  return context;
+};
 
 // Auth context
 const AuthContext = createContext(null);
@@ -203,6 +220,10 @@ function App() {
                     <Route path="/messaging" element={<ProtectedRoute><Messaging /></ProtectedRoute>} />
                     <Route path="/payment" element={<ProtectedRoute><Payment /></ProtectedRoute>} />
                     <Route path="/profile/edit" element={<ProtectedRoute><ProfileEdit /></ProtectedRoute>} />
+                    <Route path="/privacy" element={<Privacy />} />
+                    <Route path="/terms" element={<Terms />} />
+                    <Route path="/contact" element={<Contact />} />
+                    <Route path="/about" element={<About />} />
                     <Route path="*" element={<NotFound />} />
                   </Routes>
                 </Layout>
