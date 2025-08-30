@@ -1,185 +1,148 @@
-import React, { useState, useEffect } from 'react';
-import { useAuth } from '../context/AuthContext'; // Recommended context path
-import axios from 'axios';
-import toast from 'react-hot-toast';
-import { io } from 'socket.io-client';
-import { FaPaperPlane, FaUserCircle } from 'react-icons/fa';
-import { Helmet } from 'react-helmet-async';
-
-import { initializeApp } from 'firebase/app';
-import { getMessaging, getToken, onMessage } from 'firebase/messaging';
-
-const firebaseConfig = { /* Your Firebase config */ };
-const app = initializeApp(firebaseConfig);
-const messaging = getMessaging(app);
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { onAuthStateChanged } from 'firebase/auth';
+import { collection, addDoc, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { auth, db } from '../firebase';
+import Sidebar from '../views/Sidebar';
+import Button from '../components/Button';
+import MessageBubble from '../components/MessageBubble';
 
 const Messaging = () => {
-  const { user } = useAuth();
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [selectedChat, setSelectedChat] = useState(null);
+  const [message, setMessage] = useState('');
   const [messages, setMessages] = useState([]);
-  const [content, setContent] = useState('');
-  const [receiverId, setReceiverId] = useState('');
-  const [projectId, setProjectId] = useState('');
-  const [contacts, setContacts] = useState([]);
-  const socket = io('http://localhost:5001', { autoConnect: !!user });
+  const navigate = useNavigate();
+  const messagesEndRef = useRef(null);
 
   useEffect(() => {
-    if (user) {
-      // Join socket room for real-time messages
-      socket.emit('join', user.uid);
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      if (currentUser) {
+        setUser(currentUser);
+      } else {
+        navigate('/login');
+      }
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, [navigate]);
 
-      socket.on('message', (message) => {
-        setMessages((prev) => [...prev, message]);
-        toast.success('New message received!');
-      });
-
-      // Fetch contacts
-      axios.get(`http://localhost:5001/api/messages/${user.uid}/contacts`, {
-        headers: { Authorization: `Bearer ${user.getIdToken()}` },
-      }).then(({ data }) => setContacts(data));
-
-      // Fetch all messages
-      axios.get(`http://localhost:5001/api/messages/${user.uid}`, {
-        headers: { Authorization: `Bearer ${user.getIdToken()}` },
-      }).then(({ data }) => setMessages(data));
-
-      // FCM setup for push notifications
-      Notification.requestPermission().then((permission) => {
-        if (permission === 'granted') {
-          getToken(messaging, { vapidKey: 'YOUR_VAPID_KEY' }).then((token) => {
-            axios.put(
-              `http://localhost:5001/api/users/profile/${user.uid}`,
-              { fcmToken: token },
-              { headers: { Authorization: `Bearer ${user.getIdToken()}` } }
-            );
-          });
-        }
-      });
-
-      // Foreground FCM notifications
-      onMessage(messaging, ({ notification }) => {
-        toast.success(notification?.body || 'New notification');
-      });
-    }
-    return () => socket.disconnect();
-  }, [user, socket]);
-
-  const handleSend = async () => {
-    if (!content.trim()) {
-      toast.error('Message cannot be empty');
-      return;
-    }
-    try {
-      await axios.post(
-        'http://localhost:5001/api/messages',
-        { receiverId, projectId, content },
-        { headers: { Authorization: `Bearer ${user.getIdToken()}` } }
+  useEffect(() => {
+    if (selectedChat && user) {
+      const q = query(
+        collection(db, `chats/${selectedChat.id}/messages`),
+        orderBy('timestamp', 'asc')
       );
-      setContent('');
-      toast.success('Message sent!');
-    } catch {
-      toast.error('Failed to send message');
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const fetchedMessages = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        setMessages(fetchedMessages);
+      });
+      return () => unsubscribe();
+    }
+  }, [selectedChat, user]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  const handleSendMessage = async (e) => {
+    e.preventDefault();
+    if (!message.trim() || !selectedChat || !user) return;
+
+    try {
+      await addDoc(collection(db, `chats/${selectedChat.id}/messages`), {
+        text: message,
+        senderId: user.uid,
+        senderName: user.displayName || user.email,
+        timestamp: new Date(),
+      });
+      setMessage('');
+    } catch (err) {
+      console.error('Send message error:', err);
     }
   };
 
-  // Dynamic chat selection and fallback avatar/name
-  const renderContacts = () =>
-    contacts.map((contact) => (
-      <li
-        key={contact._id}
-        className={`flex items-center p-2 bg-gray-700 rounded-lg cursor-pointer hover:bg-pink-700 transition-colors ${
-          receiverId === contact._id ? 'ring-2 ring-pink-600' : ''
-        }`}
-        onClick={() => setReceiverId(contact._id)}
-        tabIndex={0}
-        aria-label={`Open chat with ${contact.name || 'User'}`}
-        onKeyPress={(e) => (e.key === 'Enter' ? setReceiverId(contact._id) : null)}
-      >
-        <FaUserCircle className="text-2xl text-pink-600 mr-2" />
-        <span className="font-semibold">{contact.name || 'User'}</span>
-      </li>
-    ));
+  const mockChats = [
+    { id: 'chat1', name: 'Startup XYZ', lastMessage: 'Hey, interested in our project?' },
+    { id: 'chat2', name: 'Alice (Student)', lastMessage: 'Can we discuss the timeline?' },
+  ];
+
+  if (loading) {
+    return <div className="text-center py-16">Loading...</div>;
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-black to-blue-950 text-white">
-      <Helmet>
-        <title>CollabKart Messaging</title>
-        <meta name="description" content="Secure, real-time messaging between VNIT students and startups on CollabKart." />
-      </Helmet>
-      <section className="py-20 px-4">
-        <div className="container mx-auto max-w-4xl flex flex-col md:flex-row space-y-8 md:space-y-0 md:space-x-8">
-          {/* Sidebar - Conversations List */}
-          <aside className="md:w-1/3 w-full bg-gray-800 rounded-xl p-6 shadow-neon">
-            <h3 className="text-xl font-extrabold mb-6 text-transparent bg-clip-text bg-gradient-to-r from-pink-600 to-purple-700">
-              Conversations
-            </h3>
-            <ul className="space-y-2">{renderContacts()}</ul>
-          </aside>
-          {/* Chat Section */}
-          <div className="md:w-2/3 w-full bg-gray-800 rounded-xl p-6 shadow-neon">
-            <h3 className="text-xl font-extrabold mb-6 text-center text-transparent bg-clip-text bg-gradient-to-r from-pink-600 to-purple-700">
-              Chat
-            </h3>
-            <div className="h-96 overflow-y-auto space-y-4 p-4 bg-gray-900 rounded-lg">
-              {!receiverId ? (
-                <div className="text-gray-400 text-center py-24">
-                  Select a conversation to start messaging.
-                </div>
-              ) : (
-                messages
-                  .filter(
-                    (m) =>
-                      (m.senderId._id === user.uid && m.receiverId._id === receiverId) ||
-                      (m.senderId._id === receiverId && m.receiverId._id === user.uid)
-                  )
-                  .map((msg) => (
-                    <div
-                      key={msg._id}
-                      className={`flex ${msg.senderId._id === user.uid ? 'justify-end' : 'justify-start'}`}
-                    >
-                      <div
-                        className={`max-w-xs p-3 rounded-lg shadow-md animate-fade-in ${
-                          msg.senderId._id === user.uid
-                            ? 'bg-gradient-to-r from-pink-600 to-purple-700 text-white border-2 border-pink-600'
-                            : 'bg-gray-700 text-gray-300 border border-purple-700'
-                        }`}
-                        aria-label={`Message from ${msg.senderId.name || 'User'}: ${msg.content}`}
-                      >
-                        <p className="text-base">{msg.content}</p>
-                        <p className="text-xs text-gray-400 mt-1">{new Date(msg.timestamp).toLocaleTimeString()}</p>
-                      </div>
-                    </div>
-                  ))
-              )}
-            </div>
-            {/* Message Input */}
-            {receiverId && (
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  handleSend();
-                }}
-                className="mt-4 flex space-x-2"
+    <div className="min-h-screen bg-gray-50 flex">
+      <Sidebar />
+      <div className="flex-1 flex flex-col">
+        <header className="bg-white shadow-md py-4">
+          <div className="container mx-auto px-4">
+            <h1 className="text-2xl font-bold text-blue-600">Messaging</h1>
+          </div>
+        </header>
+        <main className="flex-1 flex">
+          {/* Conversation List */}
+          <div className="w-1/3 bg-white border-r border-gray-200 p-4">
+            <h2 className="text-xl font-bold text-gray-800 mb-4">Chats</h2>
+            {mockChats.map((chat) => (
+              <div
+                key={chat.id}
+                onClick={() => setSelectedChat(chat)}
+                className={`p-3 rounded-lg cursor-pointer ${
+                  selectedChat?.id === chat.id ? 'bg-blue-100' : 'hover:bg-gray-100'
+                }`}
               >
-                <input
-                  type="text"
-                  value={content}
-                  onChange={(e) => setContent(e.target.value)}
-                  className="flex-1 p-3 bg-gray-900 text-white rounded border border-pink-600 focus:ring-2 focus:ring-purple-700 transition"
-                  placeholder="Type a message..."
-                  aria-label="Type your message"
-                />
-                <button
-                  type="submit"
-                  className="bg-gradient-to-r from-pink-600 to-purple-700 text-white p-3 rounded hover:scale-105 shadow-neon transition-transform"
-                  aria-label="Send message"
-                >
-                  <FaPaperPlane size={20} />
-                </button>
-              </form>
+                <p className="font-semibold text-gray-800">{chat.name}</p>
+                <p className="text-sm text-gray-600 truncate">{chat.lastMessage}</p>
+              </div>
+            ))}
+          </div>
+          {/* Chat Window */}
+          <div className="w-2/3 flex flex-col">
+            {selectedChat ? (
+              <>
+                <div className="bg-blue-600 text-white p-4">
+                  <h3 className="text-lg font-semibold">{selectedChat.name}</h3>
+                </div>
+                <div className="flex-1 p-4 overflow-y-auto bg-gray-50">
+                  {messages.map((msg) => (
+                    <MessageBubble
+                      key={msg.id}
+                      message={msg.text}
+                      isSender={msg.senderId === user.uid}
+                      senderName={msg.senderName}
+                      timestamp={msg.timestamp}
+                    />
+                  ))}
+                  <div ref={messagesEndRef} />
+                </div>
+                <form onSubmit={handleSendMessage} className="p-4 bg-white border-t border-gray-200 flex">
+                  <input
+                    type="text"
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    className="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
+                    placeholder="Type a message..."
+                  />
+                  <Button
+                    text="Send"
+                    className="ml-2 bg-blue-600 text-white hover:bg-blue-700"
+                    type="submit"
+                  />
+                </form>
+              </>
+            ) : (
+              <div className="flex-1 flex items-center justify-center text-gray-600">
+                Select a chat to start messaging
+              </div>
             )}
           </div>
-        </div>
-      </section>
+        </main>
+      </div>
     </div>
   );
 };

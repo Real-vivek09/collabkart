@@ -1,6 +1,5 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import Button from './Button';
 
 const ProjectCard = ({ project }) => {
   return (
@@ -28,9 +27,7 @@ const ProjectCard = ({ project }) => {
         to={`/projects/${project.id}`}
         className="text-blue-600 hover:text-blue-800 font-medium"
       >
-        <Button className="mt-2">View Details</Button>
         View Details →
-
       </Link>
     </div>
   );

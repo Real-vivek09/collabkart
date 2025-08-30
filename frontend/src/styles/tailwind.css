@@ -57,14 +57,3 @@
 .max-h-96 {
   max-height: 24rem;
 }
-@layer components {
-  .shadow-neon {
-    @apply shadow-[0_0_5px_#FF007A,0_0_10px_#FF007A,0_0_15px_#8B00FF] animate-pulse;
-  }
-  .bg-gradient-neon {
-    @apply bg-gradient-to-r from-pink-600 to-purple-700;
-  }
-  .btn-neon {
-    @apply px-4 py-2 rounded-md text-white bg-gradient-neon shadow-neon hover:brightness-110 transition;
-  }
-}
